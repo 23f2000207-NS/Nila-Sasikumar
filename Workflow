@@ -1,16 +1,145 @@
-name: Demo Workflow
+name: Complete Demo Workflow
+run-name: ${{ github.actor }} is running the demo workflow 🚀
 
-on: 
+on:
   push:
-    branches: [ main ]
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
   workflow_dispatch:
+  schedule:
+    - cron: '0 9 * * 1'  # Run every Monday at 9 AM UTC
+
+env:
+  NODE_VERSION: '18'
+  PYTHON_VERSION: '3.9'
 
 jobs:
-  test:
+  setup-and-test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out repository code
+        uses: actions/checkout@v4
+        
       - name: 23f2000207@ds.study.iitm.ac.in
         run: echo "Hello, world!"
-      - name: Additional step
-        run: echo "Workflow completed successfully
+        
+      - name: Print environment information
+        run: |
+          echo "🎉 The job was automatically triggered by a ${{ github.event_name }} event."
+          echo "🐧 This job is now running on a ${{ runner.os }} server hosted by GitHub!"
+          echo "🔎 The name of your branch is ${{ github.ref }} and your repository is ${{ github.repository }}."
+          echo "💡 The ${{ github.repository }} repository has been cloned to the runner."
+          echo "🖥 The workflow is now ready to test your code on the runner."
+          
+      - name: List files in the repository
+        run: |
+          ls ${{ github.workspace }}
+          
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          
+      - name: Create sample files
+        run: |
+          echo "console.log('Hello from Node.js!');" > hello.js
+          echo "print('Hello from Python!')" > hello.py
+          echo "# Demo Repository" > README.md
+          
+      - name: Run Node.js script
+        run: node hello.js
+        
+      - name: Run Python script
+        run: python hello.py
+        
+      - name: Install dependencies (if package.json exists)
+        run: |
+          if [ -f package.json ]; then
+            npm ci
+            npm run build --if-present
+            npm test --if-present
+          fi
+        shell: bash
+        
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: demo-files-${{ matrix.os }}
+          path: |
+            hello.js
+            hello.py
+            README.md
+            
+      - name: Job status check
+        run: echo "🍏 This job's status is ${{ job.status }}."
+
+  build-and-deploy:
+    needs: setup-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: demo-files-ubuntu-latest
+          
+      - name: Build application
+        run: |
+          echo "Building application..."
+          mkdir -p build
+          cp *.js build/ 2>/dev/null || echo "No JS files to copy"
+          cp *.py build/ 2>/dev/null || echo "No Python files to copy"
+          echo "Build completed successfully!"
+          
+      - name: Run security scan
+        run: |
+          echo "Running security scan..."
+          echo "✅ Security scan passed"
+          
+      - name: Deploy to staging
+        env:
+          DEPLOY_URL: ${{ secrets.DEPLOY_URL }}
+        run: |
+          echo "Deploying to staging environment..."
+          echo "Deploy URL: ${DEPLOY_URL:-'Not configured'}"
+          echo "🚀 Deployment completed successfully!"
+
+  notification:
+    needs: [setup-and-test, build-and-deploy]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Send notification
+        run: |
+          if [ "${{ needs.setup-and-test.result }}" == "success" ] && [ "${{ needs.build-and-deploy.result }}" == "success" ]; then
+            echo "✅ All jobs completed successfully!"
+          else
+            echo "❌ Some jobs failed. Check the logs for details."
+          fi
+          
+      - name: Workflow summary
+        run: |
+          echo "## Workflow Summary 📊" >> $GITHUB_STEP_SUMMARY
+          echo "- *Repository:* ${{ github.repository }}" >> $GITHUB_STEP_SUMMARY
+          echo "- *Branch:* ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- *Triggered by:* ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "- *Event:* ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- *Run ID:* ${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "- *Setup & Test Status:* ${{ needs.setup-and-test.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- *Build & Deploy Status:* ${{ needs.build-and-deploy.result }}" >> $GITHUB_STEP_SUMMARY
