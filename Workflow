@@ -1,0 +1,16 @@
+name: Demo Workflow
+
+on: 
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 23f2000207@ds.study.iitm.ac.in
+        run: echo "Hello, world!"
+      - name: Additional step
+        run: echo "Workflow completed successfully
